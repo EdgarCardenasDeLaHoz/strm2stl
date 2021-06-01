@@ -1,37 +1,45 @@
 
 import numpy as np 
 import osmnx as ox
+import pandas as pd
 
 from shapely.geometry import Polygon,MultiPolygon
 from descartes import PolygonPatch
-import matplotlib.pyplot as plt 
 
+import matplotlib.pyplot as plt 
 from matplotlib.colors import ListedColormap
 from matplotlib.collections import PatchCollection
 import matplotlib.cm as cm
 
-
-def building_polygons(GEO_poly):
+####################################
+def building_to_gdf(GEO_poly):
     
     gdf = ox.footprints_from_polygon(GEO_poly)
 
-    columns = ["area","geometry","building:height","building:color","building:levels"]
+    columns = ["area","geometry",
+               "building:height",
+               "building:color",
+               "building:levels"]
+
     columns = [col for col in columns if col in gdf.columns]
     gdf = gdf[columns]
 
-
-    gdf[["building:levels"]] = gdf[["building:levels"]].astype(np.float)
+    if "building:levels" not in gdf.columns:
+        gdf["building:levels"] = 1
+    else: 
+        gdf["building:levels"] = pd.to_numeric(gdf["building:levels"], errors='coerce')
+    
     if "building:height" not in gdf.columns:
         gdf["building:height"] = gdf["building:levels"]*3.9
     
     return gdf
 
-###################################
-
-def get_building_polygons(gdf):
+def building_to_polygons(gdf):
     
     gdf = gdf.sort_values(by=["building:height","building:levels"])
-    H = np.array(gdf[["building:height","building:levels"]],dtype = np.float)
+
+    H = np.array(gdf[["building:height","building:levels"]])
+    H = H.astype(np.float)
     build_polys = []
 
     for n,row in enumerate(gdf.itertuples(index=False)):
@@ -39,15 +47,15 @@ def get_building_polygons(gdf):
         if np.isnan(H[n,0]) and not np.isnan(H[n,1]):
             H[n,0] = H[n,1] * 3.9
 
-        build_H = np.nan_to_num(H[n,0])
-        base_H = 0
+        base_H, roof_H  = 0, np.nan_to_num(H[n,0])
 
         geometry = row.geometry
         if isinstance(geometry, Polygon):
             
             pts = np.array(geometry.exterior.xy)
-            poly = {"points":pts, "base_height": base_H, 
-                    "building_height":build_H}
+            poly = {"points":pts, 
+                    "base_height": base_H, 
+                    "roof_height": roof_H}
 
             build_polys.append(poly)
 
@@ -55,75 +63,89 @@ def get_building_polygons(gdf):
             for subpolygon in geometry: #if geometry is multipolygon, go through each constituent subpolygon
                 
                 pts = np.array(subpolygon.exterior.xy)
-                poly = {"points":pts, "base_height": base_H, 
-                        "building_height":build_H}
+                poly = {"points":pts, 
+                        "base_height": base_H, 
+                        "roof_height": roof_H}
 
                 build_polys.append(poly)
 
     return build_polys
 
-
-def triangulate_buildings(build_polys):
-
-    triangles = []
-
-    for _,p in enumerate(build_polys ):
-
-        if (p['building_height'] < 1) or (p['area']>0):
-            continue
-
-        height = p['building_height']  / 100000
-        base = p['base_height'] / 100000
-
-        verts = p['points'].T
-        if (np.isclose(verts[0],verts[-1])):  
-            verts = verts[0:-1]
-
-        zdim = np.zeros((len(verts),1)) + height + base
-        verts = np.concatenate([verts, zdim],axis=1)
-        
-        tris = np2stl.polygon_to_prism(verts, base_val=base)
-        triangles.append(tris)
-
-    triangles = np.concatenate(triangles)   
-    return triangles
-
-################################################
-
-def MakePatchCollection(gdf):
+#######################################
+def get_polygons(gdf):
     
-    gdf = gdf.sort_values(by=["building:height","building:levels"])
-    H = np.array(gdf[["building:height","building:levels"]]).astype(np.float)
-    patches = []
-    idx = 0
+    polygons = []
+    for n,row in enumerate(gdf.itertuples(index=False)):
+        geometry = row.geometry
+        if isinstance(geometry, Polygon):
+            pts = np.array(geometry.exterior.xy)
+            poly = {"points":pts}
+            polygons.append(poly)
+        elif isinstance(geometry, MultiPolygon):
+            #if geometry is multipolygon, go through each subpolygon 
+            for subpolygon in geometry: 
+                pts = np.array(subpolygon.exterior.xy)
+                poly = {"points":pts}
+                polygons.append(poly)
 
+    return polygons
+
+#####################################
+def draw_building_patches(gdf):
+
+    H = building_heights(gdf)
+    patches = building_to_patches(gdf)
+    draw_patches(patches,H)
+
+def building_heights(gdf):
+    Heights = []
     for _,row in gdf.iterrows():
 
-        geometry = row["geometry"]
-        if np.isnan(H[idx,0]) and not np.isnan(H[idx,1]):
-            H[idx,0] = H[idx,1] * 3.9
+        b_h,b_l = row[["building:height","building:levels"]]
 
+        if not np.isnan(b_h):
+            H = b_h
+        else:    
+            if not np.isnan(b_l):    H = b_l * 3.9  
+            else:                    H = 3.9
+
+        geometry = row.geometry
+        if isinstance(geometry, Polygon):
+            Heights.append(H)
+        elif isinstance(geometry, MultiPolygon):
+            for subpolygon in geometry: 
+                Heights.append(20)
+
+    Heights = np.array(Heights)
+
+    return Heights
+
+def building_to_patches(gdf):
+    
+    patches = [] 
+    for _,row in gdf.iterrows():
+        geometry = row["geometry"]
         if isinstance(geometry, Polygon):
             patches.append(PolygonPatch(geometry))
         elif isinstance(geometry, MultiPolygon):
-            for subpolygon in geometry: #if geometry is multipolygon, go through each constituent subpolygon
+            #if geometry is multipolygon, go through each constituent subpolygon
+            for subpolygon in geometry:
                 patches.append(PolygonPatch(subpolygon))
-        idx+=1
-        
-    H = np.nan_to_num(H) 
-    H_norm = H[:,0] / np.max(H[:,0])
-    
-    return patches,H_norm
+            
+    return patches
 
-def draw_building_patches(patches,H):
+#####################################
+
+def draw_patches(patches,H=None):
 
     newcolors = cm.get_cmap('jet', 256)(np.linspace(0, 1, 256))
     newcolors = np.concatenate(([[.6,.6,.6,1]], newcolors), axis=0)
     newcmp = ListedColormap(newcolors)   
 
     p = PatchCollection(patches, linewidth=0.5, edgecolor = 'w', cmap=newcmp)
-    p.set_array(H)
 
+    if H is not None:
+        p.set_array(H)
 
     fig, ax = plt.subplots(figsize=[14,10], facecolor='k')
     ax.set_facecolor('k')
@@ -139,3 +161,4 @@ def draw_building_patches(patches,H):
     #plt.colorbar(p)
     fig.canvas.draw()
 
+#####################################
