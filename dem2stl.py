@@ -33,14 +33,15 @@ class DEM:
 
         self.data = get_dem_geo(Root, geo_bounds)
         self.bounds = geo_bounds
-        self.lines = None
-        self.points = None
-        self.polygons = None
+        self.lines = []
+        self.points = []
+        self.polygons = []
 
     def draw(self):
         draw_dem(self.data, self.bounds)
-        if self.lines is not None:
-            draw_lines(self.lines)
+
+        for line in self.lines:
+            line.draw()
 
     def save_stl(self,fn):
         print("not ready")
@@ -67,11 +68,6 @@ def draw_dem(DEM, bounds):
 
         ax.imshow(DEM[::5,::5],cmap = "jet",aspect= 'equal',extent = bounds)
 
-def draw_lines(lines):  
-    for line in lines:
-        x,y = line.pts
-        plt.plot(x,y,"g")
-    return DEM
 
 ## Utility functions
 

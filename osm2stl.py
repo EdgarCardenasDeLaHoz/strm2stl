@@ -1,4 +1,3 @@
-
 import numpy as np
 from shapely.geometry import Polygon,MultiPolygon
 from descartes import PolygonPatch
@@ -6,12 +5,20 @@ import osmnx as ox
 import numpy2stl as npstl
 ## Functions using OSMNX
 
+import matplotlib.pyplot as plt 
+
 class Line:
     def __init__(self, name, pts, color='w', type=None):
         self.name = name
         self.pts = pts
         self.type = type
         self.color = color
+
+    def draw(self):  
+        if self.pts is None: return
+        if len(self.pts) == 0: return
+        x,y = self.pts
+        plt.plot(x,y,"g")
 
 def get_pistes_osmnx(bbox):
   
@@ -49,10 +56,26 @@ def get_pistes_osmnx(bbox):
 def get_boundries_osmnx(loc_name):
         
     poly = ox.geocode_to_gdf(loc_name)
-    boundry = np.array(poly.geometry.exterior[0]).T
     bbox = np.array(poly[["bbox_north","bbox_south","bbox_east","bbox_west"]])[0]
-    boundry_line = Line(loc_name, boundry, color="r", type="boundry")
-    return boundry_line, bbox
+
+    lines = []
+    if isinstance(poly.geometry[0], Polygon):
+        pts = np.array(poly.geometry.exterior.xy)
+
+        line = Line(loc_name, pts, color="r", type="boundry")
+        lines.append(line)
+
+    elif isinstance(poly.geometry[0], MultiPolygon):
+        for subpolygon in poly.geometry: #if geometry is multipolygon, go through each constituent subpolygon
+            
+            for p in subpolygon:
+                pts = np.array(p.exterior.xy)
+
+                line = Line(loc_name, pts, color="r", type="boundry")
+                lines.append(line)
+ 
+    
+    return lines, bbox
     
 def get_roads_osmnx(loc_name):
         
