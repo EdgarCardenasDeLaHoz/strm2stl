@@ -29,9 +29,15 @@ from skimage.transform import resize
 
 
 class DEM:
-    def __init__(self, Root, geo_bounds):
+    def __init__(self, root=None, geo_bounds=None, data=None):
 
-        self.data = get_dem_geo(Root, geo_bounds)
+        self.data = None
+        if root is not None:
+            self.data = get_dem_geo(root, geo_bounds)
+        else:
+            if data is not None:
+                self.data = data
+
         self.bounds = geo_bounds
         self.lines = []
         self.points = []
@@ -45,7 +51,7 @@ class DEM:
 
     def save_stl(self,fn):
         print("not ready")
-        #numpy2stl.numpy2stl(self.data, fn, solid= True, mask_val=0 )
+        #numpy2stl.numpy2stl(self.data, fn, solid=True, mask_val=0 )
     
     def resize(self,outsize=0):
         DEM = self.data

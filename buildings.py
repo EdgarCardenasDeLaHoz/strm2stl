@@ -77,16 +77,25 @@ def get_polygons(gdf):
     polygons = []
     for n,row in enumerate(gdf.itertuples(index=False)):
         geometry = row.geometry
-        if isinstance(geometry, Polygon):
-            pts = np.array(geometry.exterior.xy)
-            poly = {"points":pts}
-            polygons.append(poly)
-        elif isinstance(geometry, MultiPolygon):
-            #if geometry is multipolygon, go through each subpolygon 
-            for subpolygon in geometry: 
-                pts = np.array(subpolygon.exterior.xy)
-                poly = {"points":pts}
+
+        z1 = row.z1
+        z0 = row.z0
+        try:
+            if isinstance(geometry, Polygon):
+                pts = np.array(geometry.exterior.xy)
+                poly = {"points":pts, "z0":z0, "z1":z1}
                 polygons.append(poly)
+            elif isinstance(geometry, MultiPolygon):
+                #if geometry is multipolygon, go through each subpolygon 
+                for subpolygon in geometry.geoms: 
+                    pts = np.array(subpolygon.exterior.xy)
+                    poly = {"points":pts, "z0":z0, "z1":z1}
+                    polygons.append(poly)
+        except:
+            print("!", end="")
+            continue
+
+    #polygons = [Polygon(poly["points"].T) for poly in polygons]
 
     return polygons
 
@@ -101,20 +110,21 @@ def building_heights(gdf):
     Heights = []
     for _,row in gdf.iterrows():
 
-        b_h,b_l = row[["building:height","building:levels"]]
+        b_h,b_l = row[["height","building:levels"]]
 
-        if not np.isnan(b_h):
+        if not pd.isnull(b_h):
             H = b_h
         else:    
-            if not np.isnan(b_l):    H = b_l * 3.9  
-            else:                    H = 3.9
+            if not pd.isnull(b_l):    H = float(b_l) * 3.9  
+            else:                    H = 20
 
         geometry = row.geometry
         if isinstance(geometry, Polygon):
-            Heights.append(H)
+            Heights.append(float(H))
         elif isinstance(geometry, MultiPolygon):
-            for subpolygon in geometry: 
-                Heights.append(20)
+            Heights.append(20)
+            #for subpolygon in geometry.geoms: 
+                
 
     Heights = np.array(Heights)
 

@@ -53,6 +53,7 @@ def get_pistes_osmnx(bbox):
 
     return pistes
 
+
 def get_boundries_osmnx(loc_name):
         
     poly = ox.geocode_to_gdf(loc_name)
