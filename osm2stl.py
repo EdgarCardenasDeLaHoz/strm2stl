@@ -2,7 +2,6 @@ import numpy as np
 from shapely.geometry import Polygon,MultiPolygon
 from descartes import PolygonPatch
 import osmnx as ox
-import numpy2stl as npstl
 ## Functions using OSMNX
 
 import matplotlib.pyplot as plt 
@@ -67,9 +66,11 @@ def get_boundries_osmnx(loc_name):
         lines.append(line)
 
     elif isinstance(poly.geometry[0], MultiPolygon):
-        for subpolygon in poly.geometry: #if geometry is multipolygon, go through each constituent subpolygon
-            
-            for p in subpolygon:
+
+        #if geometry is multipolygon, go through each subpolygon 
+        for subpolygon in poly.geometry:             
+            print(subpolygon)
+            for p in subpolygon.geoms:
                 pts = np.array(p.exterior.xy)
 
                 line = Line(loc_name, pts, color="r", type="boundry")

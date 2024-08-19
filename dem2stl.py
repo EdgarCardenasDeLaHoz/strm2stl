@@ -27,6 +27,8 @@ import matplotlib.cm as cm
 
 from skimage.transform import resize
 
+from .numpy2stl import numpy2stl as np2stl
+#import numpy2stl as np2stl
 
 class DEM:
     def __init__(self, root=None, geo_bounds=None, data=None):
@@ -42,12 +44,42 @@ class DEM:
         self.lines = []
         self.points = []
         self.polygons = []
+        self.rotation = 0
 
     def draw(self):
-        draw_dem(self.data, self.bounds)
 
-        for line in self.lines:
-            line.draw()
+        bounds = self.bounds
+                        
+        fig=plt.figure(figsize=(10, 10))
+        ax=fig.add_axes([0.1,0.1,0.8,0.8])
+        ax.grid(True) 
+
+        DEM = self.data.copy()
+        if self.rotation != 0:
+            print(".")
+            DEM = rescale(DEM, DEM.shape[-1]*2)
+            DEM = rotate(DEM,self.rotation, reshape=False, cval=-100000)
+            DEM = DEM[:,~np.any(DEM<-1000,axis=0)]
+            DEM = DEM[~np.any(DEM<-1000,axis=1),:]
+
+            bounds = None
+
+            DEM[DEM<0.001] = 0
+            DEM = DEM[:,~np.all(DEM==0,axis=0)]
+            DEM = DEM[~np.all(DEM==0,axis=1),:]
+
+        else:
+            ax.set_xlim(bounds[3],bounds[2])
+            ax.set_ylim(bounds[1],bounds[0])       
+            bounds = bounds[[3,2,1,0]]     
+
+        #DEM = DEM.clip(*np.percentile(DEM.ravel(),[.1,99.9]))
+        r = 1        
+        ax.imshow(DEM[::r,::r],cmap = "jet",aspect= 'equal',extent = bounds)
+
+        for line in self.lines:  line.draw()
+
+        return DEM
 
     def save_stl(self,fn):
         print("not ready")
@@ -62,18 +94,6 @@ class DEM:
 
     def mask_region(self, polygon):
         self.data = mask_region(self.data, self.bounds, polygon)
-
-def draw_dem(DEM, bounds):
-                
-        fig=plt.figure(figsize=(10, 10))
-        ax=fig.add_axes([0.1,0.1,0.8,0.8])
-        ax.grid(True) 
-        ax.set_xlim(bounds[3],bounds[2])
-        ax.set_ylim(bounds[1],bounds[0])
-        bounds = bounds[[3,2,1,0]]
-
-        ax.imshow(DEM[::5,::5],cmap = "jet",aspect= 'equal',extent = bounds)
-
 
 ## Utility functions
 
@@ -262,7 +282,7 @@ def get_section_h5(root: str, ul: np.ndarray, lr: np.ndarray) -> np.ndarray:
 
 
 ## ### ## DEM EDITING 
-def embed_lines(DEM, pts_pix, res=1):     
+def embed_lines(DEM, pts_pix, res=1, diameter=2):     
     
     im_lines = np.zeros(DEM.shape, dtype=np.uint8)
     for x,y in pts_pix:
@@ -271,9 +291,9 @@ def embed_lines(DEM, pts_pix, res=1):
             rr, cc, val = line_aa(int(round(y[i])), int(round(x[i])), int(round(y[i+1])), int(round(x[i+1])))
             im_lines[rr, cc] = val*255
                 
-    im_lines = morphology.binary_dilation(im_lines, morphology.disk(2))         
-    DEM[im_lines>0] = DEM[im_lines>0] - (.15 * np.max(DEM)-np.min(DEM))
-    return DEM
+    im_lines = morphology.binary_dilation(im_lines, morphology.disk(1))         
+    #DEM[im_lines>0] = DEM[im_lines>0] - (.15 * np.max(DEM)-np.min(DEM))
+    return im_lines
 
 def get_bounds_geo(Coor,idx):
     
@@ -357,19 +377,26 @@ def adjust_hist(mat_adj):
     #plt.plot(xt, np.interp(xt, y1, x2) , "-o")
     return mat2
 
-def DEM2STL(DEM,  fn=None, rotation=0, n=1):
+def DEM2STL(DEM, NSEW, rotation=0, n=1, fn=None):
        
-    sz_out = 500*n
-
     mat = DEM.data
-    mat = rescale(mat, sz_out=sz_out)
+
+    if n is not None:
+        sz_out = 500*n
+        mat = rescale(mat, sz_out=sz_out)
+
+    DEM.data = mat
+
+    ####
     mat_adj = proj_map_geo_to_2D(mat,NSEW)
     mat_adj= mat_adj.round(2)
     
     if rotation != 0:
-        mat_adj = rotate(mat_adj,rotation)
-    mat_adj = mat_adj**0.5
-    #plt.close("all")
+        mat_adj = rotate(mat_adj,rotation, reshape=False)
+
+        #mat_adj = mat_adj[:,~np.any(np.isnan(mat_adj),axis=0)]
+       
+    #mat_adj = mat_adj**0.5
     plot_dist(mat_adj)
     mat_adj = mat_adj[::-1,...] + 1 
 
@@ -382,10 +409,12 @@ def DEM2STL(DEM,  fn=None, rotation=0, n=1):
         plt.close("all")
     
 def plot_dist(M): 
-    
-    fig,axs = plt.subplots(1,2)
-    axs[0].imshow(M,cmap="jet")
-    axs[1].hist(M[M>0].ravel(),50)    
+
+    fig,axs = plt.subplots(1,1)
+
+    M = M.clip(*np.percentile(M.ravel(),[1,99]))
+    axs.imshow(M,cmap="jet")
+    #axs[1].hist(M[M>0].ravel(),50)    
 
 ## 
 """
