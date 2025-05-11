@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Location Selector</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw/dist/leaflet.draw.css" />
+    <style>
+        #map { height: 400px; width: 100%; }
+    </style>
+</head>
+<body>
+    <h1>Select a Bounding Box on the Map</h1>
+    <div id="map"></div>
+    <button id="submitBtn">Submit Bounding Box</button>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-draw/dist/leaflet.draw.js"></script>
+    <script>
+        const map = L.map('map').setView([51.505, -0.09], 13); // Default center point (London)
+
+        // Set up the map layers
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // Add a draw control to draw a bounding box
+        const drawnItems = new L.FeatureGroup().addTo(map);
+        const drawControl = new L.Control.Draw({
+            draw: {
+                rectangle: true,
+                polygon: false,
+                circle: false,
+                marker: false,
+                polyline: false
+            },
+            edit: {
+                featureGroup: drawnItems
+            }
+        });
+        map.addControl(drawControl);
+
+        let boundingBox;
+
+        // Event listener for drawing a rectangle
+        map.on(L.Draw.Event.CREATED, function (event) {
+            const layer = event.layer;
+            drawnItems.addLayer(layer);
+            boundingBox = layer.getBounds(); // Get the bounding box coordinates
+            console.log("Bounding box:", boundingBox);
+        });
+
+        // Submit the bounding box to the server
+        document.getElementById('submitBtn').addEventListener('click', function() {
+            if (boundingBox) {
+                const latLngBounds = boundingBox.toBBoxString(); // Convert the bounds to string
+                const [southWestLng, southWestLat, northEastLng, northEastLat] = latLngBounds.split(',').map(Number);
+
+                // Send the bounding box coordinates to the server via POST
+                fetch('/submit_bounding_box', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        southWestLat, southWestLng, northEastLat, northEastLng
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log("Bounding Box Submitted:", data);
+                    alert('Bounding box submitted successfully!');
+                })
+                .catch(error => {
+                    console.error('Error submitting bounding box:', error);
+                    alert('Failed to submit bounding box.');
+                });
+            } else {
+                alert('Please draw a bounding box first!');
+            }
+        });
+    </script>
+</body>
+</html>
