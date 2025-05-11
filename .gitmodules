@@ -1,0 +1,3 @@
+[submodule "numpy2stl"]
+	path = numpy2stl
+	url = https://github.com/EdgarCardenasDeLaHoz/numpy2stl
