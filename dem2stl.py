@@ -48,7 +48,7 @@ class DEM:
 
     def draw(self):
 
-        bounds = self.bounds
+        bounds = np.array(self.bounds)
                         
         fig=plt.figure(figsize=(10, 10))
         ax=fig.add_axes([0.1,0.1,0.8,0.8])
@@ -289,6 +289,9 @@ def embed_lines(DEM, pts_pix, res=1, diameter=2):
         x = x*res; y = y*res
         for i in range(len(x)-1):
             rr, cc, val = line_aa(int(round(y[i])), int(round(x[i])), int(round(y[i+1])), int(round(x[i+1])))
+            rr[rr>=DEM.shape[0]] =  DEM.shape[0]-1
+            cc[cc>=DEM.shape[1]] =  DEM.shape[1]-1
+            
             im_lines[rr, cc] = val*255
                 
     im_lines = morphology.binary_dilation(im_lines, morphology.disk(1))         
@@ -350,8 +353,8 @@ def rescale(mat, sz_out=1000, scale=1):
     scale = sz_out / max(sz)
     sz = sz * scale
     sz = sz.astype(np.int)
-    mat2 = resize(mat,sz)
-    mat2 = mat2 * scale
+    mat2 = resize(mat*1.,sz)
+    mat2 = mat2 * scale * 1.
     
     return mat2
 
