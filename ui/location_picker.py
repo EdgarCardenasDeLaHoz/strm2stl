@@ -44,7 +44,7 @@ async def submit_bounding_box(bounding_box: BoundingBox):
 
 # Function to run FastAPI server
 def run_server():
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=9000)
 
 # Function to detect Jupyter notebook environment
 def in_notebook():
@@ -60,8 +60,10 @@ def in_notebook():
 def get_location():
     thread = threading.Thread(target=run_server, daemon=True)
     thread.start()
-    webbrowser.open("http://127.0.0.1:8000")
+    webbrowser.open("http://127.0.0.1:9000")
     print("Waiting for user to select a bounding box...")
+
+    print(templates_path)
 
     if not in_notebook():
         # If in Jupyter, use asyncio.sleep for non-blocking operation
